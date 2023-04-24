@@ -52,48 +52,53 @@ def for_upload_photo_index(res, foto_qnty):
 
     return foto_max_index
 
-VK_URL = 'https://api.vk.com/method/photos.get'
-like_URL = 'https://api.vk.com/method/likes.getList'
-photo_names = []
-data = []
-params = {
-'owner_id': '3090191',
-'access_token': token_vk,
-'v':'5.131',
-'album_id': 'profile'
-}
-folder_path = '/photo_vk_profile'
-
-create_folder(folder_path)
-
-res = requests.get(VK_URL, params).json()['response']['items']
-
-upload_photo_index = for_upload_photo_index(res, 5)
-
-for i in tqdm(upload_photo_index):
-    l = photo_max_size(res[i])
-    photo_url = res[i]['sizes'][l[1]]['url']
-    photo_size = res[i]['sizes'][l[1]]['type']
-    photo_id = res[i]['id']
-    like_params = {
-        'owner_id': '3090191',
-        'item_id': photo_id,
-        'access_token': token_vk,
-        'v': '5.131',
-        'type': 'photo',
-        'page_url': photo_url
+def main_func(token_vk, token_ya, owner_id, folder_path, foto_qnty, file_name):
+    VK_URL = 'https://api.vk.com/method/photos.get'
+    like_URL = 'https://api.vk.com/method/likes.getList'
+    photo_names = []
+    data = []
+    params = {
+    'owner_id': owner_id,
+    'access_token': token_vk,
+    'v':'5.131',
+    'album_id': 'profile'
     }
-    likes = requests.get(like_URL, like_params).json()
-    photo_name = likes['response']['count']
-    if photo_name in photo_names:
-        photo_name = photo_name + res[i]['date']
-    photo_names.append(photo_name)
-    upload_photo(token_ya, photo_url, photo_name)
-    d = {"file_name": f'{photo_name}.jpg', "size": photo_size}
-    data.append(d)
-    time.sleep(0.2)
 
-with open('data.txt', 'w') as outfile:
-    json.dump(data, outfile)
+    create_folder(folder_path)
+
+    res = requests.get(VK_URL, params).json()['response']['items']
+
+    upload_photo_index = for_upload_photo_index(res, foto_qnty)
+
+    for i in tqdm(upload_photo_index):
+        l = photo_max_size(res[i])
+        photo_url = res[i]['sizes'][l[1]]['url']
+        photo_size = res[i]['sizes'][l[1]]['type']
+        photo_id = res[i]['id']
+        like_params = {
+            'owner_id': owner_id,
+            'item_id': photo_id,
+            'access_token': token_vk,
+            'v': '5.131',
+            'type': 'photo',
+            'page_url': photo_url
+        }
+        likes = requests.get(like_URL, like_params).json()
+        photo_name = likes['response']['count']
+        if photo_name in photo_names:
+            photo_name = photo_name + res[i]['date']
+        photo_names.append(photo_name)
+        upload_photo(token_ya, photo_url, photo_name)
+        d = {"file_name": f'{photo_name}.jpg', "size": photo_size}
+        data.append(d)
+        time.sleep(0.2)
+
+    with open(file_name, 'w') as outfile:
+        json.dump(data, outfile)
+
+    return
+
+main_func(token_vk, token_ya, '3090191', '/photo_vk_profile', 5, 'data.txt')
+
 
 
