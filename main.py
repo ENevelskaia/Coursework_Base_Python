@@ -52,10 +52,27 @@ def for_upload_photo_index(res, foto_qnty):
 
     return foto_max_index
 
+def photo_name_func(token_vk, owner_id, photo_id, photo_url, res):
+    photo_names = []
+    like_URL = 'https://api.vk.com/method/likes.getList'
+    like_params = {
+        'owner_id': owner_id,
+        'item_id': photo_id,
+        'access_token': token_vk,
+        'v': '5.131',
+        'type': 'photo',
+        'page_url': photo_url
+    }
+    likes = requests.get(like_URL, like_params).json()
+    photo_name = likes['response']['count']
+    if photo_name in photo_names:
+        photo_name = photo_name + res['date']
+    photo_names.append(photo_name)
+
+    return photo_name
+
 def main_func(token_vk, token_ya, owner_id, folder_path, foto_qnty, file_name):
     VK_URL = 'https://api.vk.com/method/photos.get'
-    like_URL = 'https://api.vk.com/method/likes.getList'
-    photo_names = []
     data = []
     params = {
     'owner_id': owner_id,
@@ -75,19 +92,7 @@ def main_func(token_vk, token_ya, owner_id, folder_path, foto_qnty, file_name):
         photo_url = res[i]['sizes'][l[1]]['url']
         photo_size = res[i]['sizes'][l[1]]['type']
         photo_id = res[i]['id']
-        like_params = {
-            'owner_id': owner_id,
-            'item_id': photo_id,
-            'access_token': token_vk,
-            'v': '5.131',
-            'type': 'photo',
-            'page_url': photo_url
-        }
-        likes = requests.get(like_URL, like_params).json()
-        photo_name = likes['response']['count']
-        if photo_name in photo_names:
-            photo_name = photo_name + res[i]['date']
-        photo_names.append(photo_name)
+        photo_name = photo_name_func(token_vk, owner_id, photo_id, photo_url, res[i])
         upload_photo(token_ya, photo_url, photo_name)
         d = {"file_name": f'{photo_name}.jpg', "size": photo_size}
         data.append(d)
@@ -98,7 +103,8 @@ def main_func(token_vk, token_ya, owner_id, folder_path, foto_qnty, file_name):
 
     return
 
-main_func(token_vk, token_ya, '3090191', '/photo_vk_profile', 5, 'data.txt')
+main_func(token_vk, token_ya, '3090191', '/photo_vk_profile', 8, 'data.txt')
+
 
 
 
