@@ -2,13 +2,16 @@ import requests
 import time
 import json
 from tqdm import tqdm
+import os
+from dotenv import load_dotenv
 
+from os.path import join, dirname
 
-with open("token_vk.txt", "r") as token_vk_File:
-    token_vk = token_vk_File.read().strip()
+dotenv_path = join(dirname(__file__), '.env')
+load_dotenv(dotenv_path)
+token_vk = os.environ.get("token_vk")
+#token_ya = os.environ.get("token_ya")
 
-with open("token_ya.txt", "r") as token_ya_File:
-    token_ya = token_ya_File.read().strip()
 
 def create_folder(folder_path):
     host = 'https://cloud-api.yandex.net/v1/disk/resources/'
@@ -20,91 +23,54 @@ def create_folder(folder_path):
     elif response.status_code == 409:
         print("Папка c таким названием существует")
 
-def upload_photo(token, file_url, file_name):
-    host = 'https://cloud-api.yandex.net/v1/disk/resources/upload/'
-    params = {'path': f'/photo_vk_profile/{file_name}', 'url': file_url}
-    headers = {'Content-Type': 'application/json', 'Authorization': f'OAuth {token}'}
-    requests.post(host, headers=headers, params=params)
-    return
 
-def photo_max_size(dict):
-    size_list = []
-    for m in dict['sizes']:
-        size_list.append(m['height']*m['width'])
-    max_value = max(size_list)
-    if max_value == 0:
-         max_index = -1
-    else:
-         max_index = size_list.index(max_value)
-    return max_value, max_index
-
-def for_upload_photo_index(res, foto_qnty):
-    max_size_list = []
-    foto_max_index = []
-    for item in res:
-        max_size_list.append(photo_max_size(item)[0])
-    foto_max_size_list = sorted(max_size_list)[-1:-(foto_qnty+1):-1]
-
-    for i in foto_max_size_list:
-        d = max_size_list.index(i)
-        foto_max_index.append(d)
-        max_size_list[d] = 0
-
-    return foto_max_index
-
-def photo_name_func(token_vk, owner_id, photo_id, photo_url, res):
-    photo_names = []
-    like_URL = 'https://api.vk.com/method/likes.getList'
-    like_params = {
-        'owner_id': owner_id,
-        'item_id': photo_id,
-        'access_token': token_vk,
-        'v': '5.131',
-        'type': 'photo',
-        'page_url': photo_url
-    }
-    likes = requests.get(like_URL, like_params).json()
-    photo_name = likes['response']['count']
-    if photo_name in photo_names:
-        photo_name = photo_name + res['date']
-    photo_names.append(photo_name)
-
-    return photo_name
-
-def main_func(token_vk, token_ya, owner_id, folder_path, foto_qnty, file_name):
+def get_profile_photo(token_vk, owner_id):
     VK_URL = 'https://api.vk.com/method/photos.get'
-    data = []
     params = {
     'owner_id': owner_id,
     'access_token': token_vk,
     'v':'5.131',
-    'album_id': 'profile'
+    'album_id': 'profile',
+    'extended': 1
     }
 
-    create_folder(folder_path)
+    profile_photo_dict= requests.get(VK_URL, params).json()['response']['items']
 
-    res = requests.get(VK_URL, params).json()['response']['items']
+    return profile_photo_dict
 
-    upload_photo_index = for_upload_photo_index(res, foto_qnty)
+def profile_photo_sorted(token_vk, owner_id):
+    profile_photo_collection = []
+    photo_names = []
+    for item in get_profile_photo(token_vk, owner_id):
+        sorted_item = sorted(item['sizes'], key=lambda x: (x['height'], x['width']))
+        photo_url = sorted_item[-1]['url']
+        photo_size = sorted_item[-1]['height'] * sorted_item[-1]['width']
+        photo_size_type = sorted_item[-1]['type']
+        photo_name = item['likes']['count']
+        if photo_name in photo_names:
+            photo_name = photo_name + item['date']
+        photo_names.append(photo_name)
+        profile_photo_collection.append([photo_name, photo_url, photo_size_type, photo_size])
+    profile_photo_collection.sort(key=lambda x: x[3], reverse=True)
+    return profile_photo_collection
 
-    for i in tqdm(upload_photo_index):
-        l = photo_max_size(res[i])
-        photo_url = res[i]['sizes'][l[1]]['url']
-        photo_size = res[i]['sizes'][l[1]]['type']
-        photo_id = res[i]['id']
-        photo_name = photo_name_func(token_vk, owner_id, photo_id, photo_url, res[i])
-        upload_photo(token_ya, photo_url, photo_name)
-        d = {"file_name": f'{photo_name}.jpg', "size": photo_size}
+def upload_photo(token_ya, photo_list_,qnty_to_load):
+    create_folder('/photo_vk_profile')
+    host = 'https://cloud-api.yandex.net/v1/disk/resources/upload/'
+    data = []
+    for photo in tqdm(photo_list_[0:(qnty_to_load)]):
+        params = {'path': f'/photo_vk_profile/{photo[0]}', 'url': photo[1]}
+        headers = {'Content-Type': 'application/json', 'Authorization': f'OAuth {token_ya}'}
+        requests.post(host, headers=headers, params=params)
+        d = {"file_name": f'{photo[0]}.jpg', "size": photo[2]}
         data.append(d)
         time.sleep(0.2)
-
-    with open(file_name, 'w') as outfile:
+    with open('data.txt', 'w') as outfile:
         json.dump(data, outfile)
-
     return
 
-main_func(token_vk, token_ya, '3090191', '/photo_vk_profile', 8, 'data.txt')
-
-
-
-
+if __name__ == '__main__':
+    owner_id = input('Введите идентификатор ВК пользователя: ')
+    token_ya = input('Введите token вашего Ядекс Диска: ')
+    photo_list_ = profile_photo_sorted(token_vk, owner_id)
+    data = upload_photo(token_ya, photo_list_, 5)
