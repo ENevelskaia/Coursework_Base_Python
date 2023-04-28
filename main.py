@@ -54,8 +54,8 @@ def profile_photo_sorted(token_vk, owner_id):
     profile_photo_collection.sort(key=lambda x: x[3], reverse=True)
     return profile_photo_collection
 
-def upload_photo(token_ya, photo_list_,qnty_to_load):
-    create_folder('/photo_vk_profile')
+def upload_photo(token_ya, photo_list_,qnty_to_load, folder_path):
+    create_folder(folder_path)
     host = 'https://cloud-api.yandex.net/v1/disk/resources/upload/'
     data = []
     for photo in tqdm(photo_list_[0:(qnty_to_load)]):
@@ -73,4 +73,4 @@ if __name__ == '__main__':
     owner_id = input('Введите идентификатор ВК пользователя: ')
     token_ya = input('Введите token вашего Ядекс Диска: ')
     photo_list_ = profile_photo_sorted(token_vk, owner_id)
-    data = upload_photo(token_ya, photo_list_, 5)
+    data = upload_photo(token_ya, photo_list_, 5, '/photo_vk_profile')
