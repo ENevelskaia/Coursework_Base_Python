@@ -1,19 +1,20 @@
+import itertools
 import requests
 import time
 import json
 from tqdm import tqdm
 import os
 from dotenv import load_dotenv
+import vk
+import yadisk
+
 
 from os.path import join, dirname
 
 dotenv_path = join(dirname(__file__), '.env')
 load_dotenv(dotenv_path)
-token_vk = os.environ.get("token_vk")
-#token_ya = os.environ.get("token_ya")
 
-
-def create_folder(folder_path):
+def create_folder(folder_path, token_ya):
     host = 'https://cloud-api.yandex.net/v1/disk/resources/'
     params = {'path': folder_path}
     headers = {'Content-Type': 'application/json', 'Authorization': f'OAuth {token_ya}'}
@@ -24,11 +25,11 @@ def create_folder(folder_path):
         print("Папка c таким названием существует")
 
 
-def get_profile_photo(token_vk, owner_id):
+def get_profile_photo(owner_id):
     VK_URL = 'https://api.vk.com/method/photos.get'
     params = {
     'owner_id': owner_id,
-    'access_token': token_vk,
+    'access_token': os.environ.get("token_vk"),
     'v':'5.131',
     'album_id': 'profile',
     'extended': 1
@@ -38,39 +39,52 @@ def get_profile_photo(token_vk, owner_id):
 
     return profile_photo_dict
 
-def profile_photo_sorted(token_vk, owner_id):
-    profile_photo_collection = []
-    photo_names = []
-    for item in get_profile_photo(token_vk, owner_id):
-        sorted_item = sorted(item['sizes'], key=lambda x: (x['height'], x['width']))
-        photo_url = sorted_item[-1]['url']
-        photo_size = sorted_item[-1]['height'] * sorted_item[-1]['width']
-        photo_size_type = sorted_item[-1]['type']
+def profile_photo_sorted(owner_id):
+    profile_photo_collection = {}
+    for item in get_profile_photo(owner_id):
+        sorted_item = sorted(item['sizes'], key=lambda x: (x['height'], x['width']))[-1]
+        photo_url = sorted_item['url']
+        photo_size_type = sorted_item['type']
         photo_name = item['likes']['count']
-        if photo_name in photo_names:
+        if photo_name in dict.keys(profile_photo_collection):
             photo_name = photo_name + item['date']
-        photo_names.append(photo_name)
-        profile_photo_collection.append([photo_name, photo_url, photo_size_type, photo_size])
-    profile_photo_collection.sort(key=lambda x: x[3], reverse=True)
+        profile_photo_collection[photo_name] = {'url':photo_url, 'size':photo_size_type}
     return profile_photo_collection
 
-def upload_photo(token_ya, photo_list_,qnty_to_load, folder_path):
-    create_folder(folder_path)
+def upload_photo(token_ya, photo_dict_):
+    folder_path = 'photo_vk_profile'
+    create_folder(folder_path, token_ya)
     host = 'https://cloud-api.yandex.net/v1/disk/resources/upload/'
     data = []
-    for photo in tqdm(photo_list_[0:(qnty_to_load)]):
-        params = {'path': f'/photo_vk_profile/{photo[0]}', 'url': photo[1]}
+    for photo in tqdm(itertools.islice(photo_dict_, 0, 5)):
+        params = {'path': f'/photo_vk_profile/{photo}', 'url': photo_dict_[photo]['url']}
         headers = {'Content-Type': 'application/json', 'Authorization': f'OAuth {token_ya}'}
         requests.post(host, headers=headers, params=params)
-        d = {"file_name": f'{photo[0]}.jpg', "size": photo[2]}
+        d = {"file_name": f'{photo}.jpg', "size": photo_dict_[photo]['size']}
         data.append(d)
         time.sleep(0.2)
-    with open('data.txt', 'w') as outfile:
+    with open('data.json', 'w') as outfile:
         json.dump(data, outfile)
     return
 
+def check_id(owner_id):
+    api = vk.API(access_token=os.environ.get("token_vk"), v='5.131')
+    t = api.users.get(user_ids=owner_id)
+    if t == []:
+        print('Введен неверный идентификатор ВК пользователя')
+        exit()
+
+def check_token(token_ya):
+    y = yadisk.YaDisk(token=token_ya)
+    if y.check_token() == False:
+        print('Введенный токен не валиден')
+        exit()
+
+
 if __name__ == '__main__':
-    owner_id = input('Введите идентификатор ВК пользователя: ')
-    token_ya = input('Введите token вашего Ядекс Диска: ')
-    photo_list_ = profile_photo_sorted(token_vk, owner_id)
-    data = upload_photo(token_ya, photo_list_, 5, '/photo_vk_profile')
+    owner_id = input('Введите идентификатор ВК пользователя:')
+    check_id(owner_id)
+    token_ya = input('Введите token вашего Ядекс Диска:')
+    check_token(token_ya)
+    photo_list_ = profile_photo_sorted(owner_id)
+    upload_photo(token_ya, photo_list_)
