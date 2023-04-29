@@ -7,12 +7,26 @@ import os
 from dotenv import load_dotenv
 import vk
 import yadisk
-
-
 from os.path import join, dirname
 
 dotenv_path = join(dirname(__file__), '.env')
 load_dotenv(dotenv_path)
+
+def check_id(owner_id):
+    api = vk.API(access_token=os.environ.get("token_vk"), v='5.131')
+    t = api.users.get(user_ids=owner_id)
+    if t == []:
+        print('Введен неверный идентификатор ВК пользователя')
+        exit()
+    else:
+        owner_id = t[0]['id']
+    return owner_id
+
+def check_token(token_ya):
+    y = yadisk.YaDisk(token=token_ya)
+    if y.check_token() == False:
+        print('Введенный токен Яндекс Диска не валиден')
+        exit()
 
 def create_folder(folder_path, token_ya):
     host = 'https://cloud-api.yandex.net/v1/disk/resources/'
@@ -24,8 +38,8 @@ def create_folder(folder_path, token_ya):
     elif response.status_code == 409:
         print("Папка c таким названием существует")
 
-
 def get_profile_photo(owner_id):
+    owner_id = check_id(owner_id)
     VK_URL = 'https://api.vk.com/method/photos.get'
     params = {
     'owner_id': owner_id,
@@ -52,6 +66,7 @@ def profile_photo_sorted(owner_id):
     return profile_photo_collection
 
 def upload_photo(token_ya, photo_dict_):
+    check_token(token_ya)
     folder_path = 'photo_vk_profile'
     create_folder(folder_path, token_ya)
     host = 'https://cloud-api.yandex.net/v1/disk/resources/upload/'
@@ -67,24 +82,9 @@ def upload_photo(token_ya, photo_dict_):
         json.dump(data, outfile)
     return
 
-def check_id(owner_id):
-    api = vk.API(access_token=os.environ.get("token_vk"), v='5.131')
-    t = api.users.get(user_ids=owner_id)
-    if t == []:
-        print('Введен неверный идентификатор ВК пользователя')
-        exit()
-
-def check_token(token_ya):
-    y = yadisk.YaDisk(token=token_ya)
-    if y.check_token() == False:
-        print('Введенный токен не валиден')
-        exit()
-
 
 if __name__ == '__main__':
     owner_id = input('Введите идентификатор ВК пользователя:')
-    check_id(owner_id)
-    token_ya = input('Введите token вашего Ядекс Диска:')
-    check_token(token_ya)
     photo_list_ = profile_photo_sorted(owner_id)
+    token_ya = input('Введите token вашего Яндекс Диска:')
     upload_photo(token_ya, photo_list_)
