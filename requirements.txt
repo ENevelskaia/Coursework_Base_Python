@@ -2,4 +2,9 @@ about-time==4.2.1
 requests==2.28.2
 tqdm==4.65.0
 dotenv==1.0.0
-
+itertools
+json
+os
+vk
+yadisk
+os.path import join, dirname
